@@ -36,7 +36,7 @@ export function useAudio() {
       gainNode.gain.exponentialRampToValueAtTime(0.001, t + duration);
       oscillator.start(t);
       oscillator.stop(t + duration);
-    } catch (e) {
+    } catch {
       // Silently fail — audio is non-critical
     }
   }, []);

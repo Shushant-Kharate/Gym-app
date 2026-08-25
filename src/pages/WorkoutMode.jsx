@@ -1,5 +1,5 @@
 // WorkoutMode.jsx — full-screen workout flow
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { X, ChevronRight, Trophy, Clock, Info, ChevronDown, Clipboard, Check, Flame, Dumbbell } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer';
 import { useAudio } from '../hooks/useAudio';
@@ -39,14 +39,14 @@ export default function WorkoutMode({ programDay, onEnd }) {
   const [savedSession, setSavedSession] = useState(null);
   const [showLoadCalc, setShowLoadCalc] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [preSessionPRs, setPreSessionPRs] = useState({});
 
   const currentExercise = exercises[currentExIdx];
 
-  // Per-exercise rest from program data; fall back to global setting if missing
-  const getRestForExercise = (ex) =>
-    ex?.restSec ?? (programDay?.type === 'strength'
-      ? settings.restTimerStrengthSec
-      : settings.restTimerHypertrophySec);
+  // User settings are authoritative; program values remain suggested defaults.
+  const getRestForExercise = () => programDay?.type === 'strength'
+    ? settings.restTimerStrengthSec
+    : settings.restTimerHypertrophySec;
 
   const currentRestDuration = currentExercise ? getRestForExercise(currentExercise) : settings.restTimerStrengthSec;
 
@@ -59,17 +59,26 @@ export default function WorkoutMode({ programDay, onEnd }) {
     return () => clearInterval(interval);
   }, [sessionStartTime]);
 
+  // Keep the display awake during an active mobile workout when supported.
+  useEffect(() => {
+    let wakeLock = null;
+    navigator.wakeLock?.request('screen').then(lock => { wakeLock = lock; }).catch(() => {});
+    return () => { wakeLock?.release().catch(() => {}); };
+  }, []);
+
   const elapsedMin = Math.floor(elapsedSec / 60);
   const elapsedS   = elapsedSec % 60;
   const sessionElapsedDisplay = `${String(elapsedMin).padStart(2,'0')}:${String(elapsedS).padStart(2,'0')}`;
 
   function handleEndEarly() {
+    setPreSessionPRs(Object.fromEntries(exercises.map(ex => [ex.name, getExercisePR(ex.name)])));
     const s = saveSession(true);
     setSavedSession(s);
     session.setPhase('complete');
   }
 
   function handleCompleteStretch() {
+    setPreSessionPRs(Object.fromEntries(exercises.map(ex => [ex.name, getExercisePR(ex.name)])));
     const s = saveSession(false);
     setSavedSession(s);
     playSessionComplete();
@@ -99,8 +108,8 @@ export default function WorkoutMode({ programDay, onEnd }) {
       const doneSets = ex.sets.filter(s => s.done);
       const vol = doneSets.reduce((s, set) => s + (set.weightKg || 0) * (set.reps || 0), 0);
       const maxW = doneSets.length > 0 ? Math.max(...doneSets.map(s => s.weightKg || 0)) : 0;
-      const pr = getExercisePR(ex.name);
-      const isNewPR = maxW > 0 && pr && maxW >= pr.weightKg;
+      const previousPR = preSessionPRs[ex.name];
+      const isNewPR = maxW > 0 && (!previousPR || maxW > previousPR.weightKg);
       return { name: ex.name, sets: doneSets.length, total: ex.sets.length, volume: Math.round(vol), maxWeight: maxW, isNewPR };
     });
 
@@ -253,22 +262,7 @@ export default function WorkoutMode({ programDay, onEnd }) {
       {phase !== 'complete' && (
         <div
           id="session-stopwatch"
-          style={{
-            position: 'fixed',
-            bottom: 90,         // above the (hidden) bottom nav
-            right: 16,
-            zIndex: 50,
-            background: 'rgba(14,14,20,0.85)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: 12,
-            padding: '6px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-            minWidth: 72,
-          }}
+          className="session-stopwatch"
           aria-label={`Session elapsed: ${sessionElapsedDisplay}`}
         >
           <Clock size={10} color="var(--text-dim)" style={{ marginBottom: 2 }} />
@@ -405,14 +399,14 @@ export default function WorkoutMode({ programDay, onEnd }) {
             <div className="flex gap-sm" style={{
               padding: '6px 12px',
               display: 'grid',
-              gridTemplateColumns: '28px 1fr 1fr auto',
+              gridTemplateColumns: '28px minmax(0, 1fr) minmax(0, 1fr) 94px',
               gap: 10,
               marginBottom: 6,
             }}>
               <span className="text-xs text-dim text-center">#</span>
               <span className="text-xs text-dim text-center">kg</span>
               <span className="text-xs text-dim text-center">reps</span>
-              <span className="text-xs text-dim text-center" style={{ width: 32 }}>✓</span>
+              <span className="text-xs text-dim text-center">skip / ✓</span>
             </div>
 
             {/* Set rows */}

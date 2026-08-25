@@ -1,6 +1,6 @@
 // ExerciseVideoPlayer.jsx — collapsible video player for Workout Mode (Local MP4 + YouTube fallback)
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, PlayCircle, Settings, ExternalLink, HardDrive } from 'lucide-react';
+import { ChevronDown, ChevronUp, PlayCircle, Settings, ExternalLink } from 'lucide-react';
 import { buildEmbedUrl, buildThumbnailUrl, extractYouTubeId } from '../../utils/videoUtils';
 import { useNavigate } from 'react-router-dom';
 

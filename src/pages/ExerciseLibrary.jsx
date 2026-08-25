@@ -1,8 +1,8 @@
 // ExerciseLibrary.jsx — Exercise Library Manager
 // Deduplicated list of all 86 exercises across Main, Warmup, and Stretch routines
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Link, Check, X, Trash2, PlayCircle, ExternalLink, ChevronRight, AlertCircle, Dumbbell, Flame, Heart } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Search, Link, Check, X, Trash2, PlayCircle, ExternalLink, AlertCircle, Dumbbell, Flame, Heart } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { PROGRAM_DAYS } from '../data/program';
 import { getExerciseVideos, saveVideoForExercise, clearVideoForExercise } from '../db/storage';
 import { isValidYouTubeUrl, extractYouTubeId, buildThumbnailUrl, buildEmbedUrl } from '../utils/videoUtils';
@@ -127,7 +127,7 @@ function ExerciseRow({ exercise, savedUrl, onSave, onClear, isFocused }) {
       }}
     >
       {/* Exercise header */}
-      <div className="flex items-start justify-between mb-sm">
+      <div className="exercise-row-header flex items-start justify-between mb-sm">
         <div style={{ flex: 1 }}>
           <div className="flex items-center gap-xs flex-wrap">
             <h3 className="display-xs" style={{ fontSize: 15 }}>{exercise.name}</h3>
@@ -164,6 +164,8 @@ function ExerciseRow({ exercise, savedUrl, onSave, onClear, isFocused }) {
         {/* Saved thumbnail */}
         {saved && videoId && (
           <img
+            loading="lazy"
+            className="exercise-thumbnail"
             src={buildThumbnailUrl(videoId)}
             alt={`${exercise.name} video thumbnail`}
             style={{
@@ -180,7 +182,7 @@ function ExerciseRow({ exercise, savedUrl, onSave, onClear, isFocused }) {
       </div>
 
       {/* URL Input Row */}
-      <div className="flex gap-sm mb-xs">
+      <div className="exercise-url-row flex gap-sm mb-xs">
         <div style={{ position: 'relative', flex: 1 }}>
           <Link
             size={14}
@@ -212,7 +214,7 @@ function ExerciseRow({ exercise, savedUrl, onSave, onClear, isFocused }) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-xs">
+        <div className="exercise-actions flex gap-xs">
           {hasInput && (
             <button
               id={`video-test-${exercise.name.replace(/\s/g, '-')}`}
@@ -319,6 +321,9 @@ export default function ExerciseLibrary() {
   const [videoMap, setVideoMap] = useState(() => getExerciseVideos());
   const [query, setQuery] = useState(focusName);
   const [category, setCategory] = useState('All'); // 'All' | 'Main' | 'Warmup' | 'Stretch'
+  const [visibleCount, setVisibleCount] = useState(15);
+
+  useEffect(() => setVisibleCount(15), [query, category]);
 
   // Count exercises with videos
   const linkedCount = Object.keys(videoMap).length;
@@ -457,7 +462,7 @@ export default function ExerciseLibrary() {
             <p className="text-muted">No exercises match "{query}" in {category}</p>
           </div>
         ) : (
-          filteredExercises.map(ex => (
+          filteredExercises.slice(0, visibleCount).map(ex => (
             <ExerciseRow
               key={ex.name}
               exercise={ex}
@@ -468,8 +473,12 @@ export default function ExerciseLibrary() {
             />
           ))
         )}
+        {filteredExercises.length > visibleCount && (
+          <button className="btn btn-secondary btn-full mb-lg" onClick={() => setVisibleCount(count => count + 15)}>
+            Show More ({filteredExercises.length - visibleCount} remaining)
+          </button>
+        )}
       </div>
     </div>
   );
 }
-

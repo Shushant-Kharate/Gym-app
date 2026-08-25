@@ -2,12 +2,12 @@
 import { useState } from 'react';
 import { Save, Download, Trash2, Eye, EyeOff, AlertTriangle, Dumbbell, Info, Key, Volume2, Timer, Shield, PlayCircle, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSettings, saveSettings, exportAllData, resetAllData, getProfile, getWorkoutSessions, getExerciseVideos } from '../db/storage';
+import { getSettings, saveSettings, exportAllData, resetAllData, getProfile, saveProfile, getWorkoutSessions, getExerciseVideos, getBodyLogs } from '../db/storage';
 import { calcMaintenance, calcProteinTarget, calcDeficitTarget } from '../logic/nutrition';
 import { checkLiftImbalance } from '../logic/geminiCoach';
 
 export default function Settings() {
-  const profile = getProfile();
+  const [profile, setProfile] = useState(getProfile);
   const navigate = useNavigate();
   const [settings, setSettings] = useState(getSettings);
   const [showKey, setShowKey] = useState(false);
@@ -18,11 +18,17 @@ export default function Settings() {
   const [aiError, setAiError] = useState('');
   const linkedVideoCount = Object.keys(getExerciseVideos()).length;
 
-  const maintenance = calcMaintenance(profile.currentWeightKg, profile.heightCm, profile.age);
-  const proteinTarget = calcProteinTarget(profile.currentWeightKg);
+  const latestWeight = [...getBodyLogs()].reverse().find(entry => entry.weightKg)?.weightKg ?? profile.currentWeightKg;
+  const maintenance = calcMaintenance(latestWeight, profile.heightCm, profile.age);
+  const proteinTarget = calcProteinTarget(latestWeight);
   const deficitTarget = calcDeficitTarget(maintenance.maintenance);
 
-  function handleSave() { saveSettings(settings); setSaved(true); setTimeout(() => setSaved(false), 1500); }
+  function handleSave() {
+    saveSettings(settings);
+    saveProfile(profile);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  }
   function handleExport() {
     const data = exportAllData();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -37,7 +43,10 @@ export default function Settings() {
     if (!settings.geminiKey) { setAiError('Add your Gemini key first.'); return; }
     setAiLoading(true); setAiResult(''); setAiError('');
     try {
-      const result = await checkLiftImbalance({ workoutSessions: getWorkoutSessions() });
+      const result = await checkLiftImbalance(
+        { workoutSessions: getWorkoutSessions() },
+        settings.geminiKey
+      );
       setAiResult(result);
     } catch (e) { setAiError(e.message); }
     finally { setAiLoading(false); }
@@ -117,7 +126,7 @@ export default function Settings() {
         {/* Profile grid */}
         <div className="card mb-md fade-in-up">
           <p className="label mb-md">Profile</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+          <div className="profile-grid">
             {[
               ['Name', profile.name], ['Age', `${profile.age}y`],
               ['Height', `${profile.heightCm}cm`], ['Weight', `${profile.currentWeightKg}kg`],
@@ -130,6 +139,36 @@ export default function Settings() {
               </div>
             ))}
           </div>
+          <div className="divider" />
+          <div className="settings-profile-form">
+            {[
+              ['name', 'Name', 'text', 1],
+              ['age', 'Age', 'number', 1],
+              ['heightCm', 'Height (cm)', 'number', 0.1],
+              ['currentWeightKg', 'Baseline Weight (kg)', 'number', 0.1],
+              ['goalWeightKg', 'Goal Weight (kg)', 'number', 0.1],
+              ['deadlift1RMkg', 'Deadlift 1RM (kg)', 'number', 2.5],
+              ['squat1RMkg', 'Squat 1RM (kg)', 'number', 2.5],
+              ['bench1RMkg', 'Bench 1RM (kg)', 'number', 2.5],
+              ['waistCm', 'Baseline Waist (cm)', 'number', 0.1],
+            ].map(([key, label, type, step]) => (
+              <div key={key}>
+                <label className="label" htmlFor={`profile-${key}`}>{label}</label>
+                <input
+                  id={`profile-${key}`}
+                  className="input input-sm"
+                  type={type}
+                  step={step}
+                  value={profile[key] ?? ''}
+                  onChange={event => setProfile(current => ({
+                    ...current,
+                    [key]: type === 'number' ? Number(event.target.value) : event.target.value,
+                  }))}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-dim mt-sm">Targets use your latest logged body weight when available.</p>
         </div>
 
         {/* Gemini Key */}

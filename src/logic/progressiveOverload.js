@@ -1,7 +1,7 @@
 // progressiveOverload.js — deterministic weight suggestion logic
 // No AI involved — pure math based on last session's performance
 
-import { getWorkoutSessions } from '../db/storage';
+import { getWorkoutSessions } from '../db/storage.js';
 
 /**
  * Suggest weight for next session

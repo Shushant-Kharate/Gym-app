@@ -62,6 +62,29 @@ export function buildThumbnailUrl(videoId) {
 export function findMatchingExerciseVideo(text, videoMap) {
   if (!text || !videoMap) return null;
   const cleanText = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+
+  // Program instructions often use natural-language variants or describe a
+  // lighter warm-up version of an exercise. Resolve those before fuzzy matching.
+  const instructionAliases = [
+    ['bar only bench', 'Barbell Bench Press'],
+    ['bar only squat', 'Back Squat'],
+    ['light squat ramp up', 'Back Squat'],
+    ['bar only deadlift', 'Deadlift'],
+    ['light dumbbell press', 'Incline Dumbbell Press'],
+    ['light band curl', 'Barbell Curl'],
+    ['cross body shoulder stretch', 'Shoulder Cross-Body Stretch'],
+    ['shoulder cross body stretch', 'Shoulder Cross-Body Stretch'],
+    ['triceps overhead stretch', 'Overhead Triceps Stretch'],
+    ['wrist flexor stretch', 'Wrist Flexor/Extensor Stretch'],
+    ['wrist extensor stretch', 'Wrist Flexor/Extensor Stretch'],
+    ['push up', 'Push-Up (bodyweight)'],
+  ];
+
+  for (const [phrase, name] of instructionAliases) {
+    if (cleanText.includes(phrase) && videoMap[name]) {
+      return { name, url: videoMap[name] };
+    }
+  }
   
   for (const [name, url] of Object.entries(videoMap)) {
     if (!url) continue;
@@ -79,4 +102,3 @@ export function findMatchingExerciseVideo(text, videoMap) {
   }
   return null;
 }
-

@@ -1,5 +1,5 @@
 // App.jsx — routing, WorkoutMode context
-import { useState, createContext, useContext } from 'react';
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
@@ -10,20 +10,15 @@ import Nutrition from './pages/Nutrition';
 import Body from './pages/Body';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
-
-// WorkoutMode context — when active, hides the bottom nav
-export const WorkoutContext = createContext(null);
-
-export function useWorkoutContext() {
-  return useContext(WorkoutContext);
-}
+import { getActiveWorkoutDraft } from './db/storage';
 
 function AppRoutes() {
-  const [activeSession, setActiveSession] = useState(null); // null = no session
+  const [activeSession, setActiveSession] = useState(
+    () => getActiveWorkoutDraft()?.programDay ?? null
+  ); // null = no session
 
   return (
-    <WorkoutContext.Provider value={{ activeSession, setActiveSession }}>
-      {activeSession ? (
+    activeSession ? (
         <WorkoutMode
           programDay={activeSession}
           onEnd={() => setActiveSession(null)}
@@ -40,8 +35,7 @@ function AppRoutes() {
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </AppShell>
-      )}
-    </WorkoutContext.Provider>
+      )
   );
 }
 

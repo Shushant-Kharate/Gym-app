@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 .venv
+.netlify
+.vercel
 *.local
 
 # Editor directories and files

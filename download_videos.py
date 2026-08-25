@@ -23,7 +23,12 @@ def extract_yt_id(url):
     return m.group(1) if m else None
 
 ydl_opts = {
-    'format': 'b[height<=360]/b[height<=480]/b/worst',
+    # Local players are muted, so prefer a broadly supported H.264 video stream.
+    # YouTube often exposes short-form videos as video-only DASH streams; using
+    # `best` (combined audio/video) can select an inaccessible HLS URL and 403.
+    # Format 134 is YouTube's standard H.264 360p stream. This also avoids
+    # treating a vertical Short's 640-pixel long edge as its quality tier.
+    'format': '134/18/160',
     'outtmpl': os.path.join(VIDEOS_DIR, '%(id)s.%(ext)s'),
     'quiet': True,
     'no_warnings': True,
@@ -46,8 +51,11 @@ def download_video(item):
     opts['outtmpl'] = os.path.join(VIDEOS_DIR, f"{video_id}.%(ext)s")
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-        print(f"Downloaded: {name} ({video_id})")
+            result = ydl.download([url])
+        if result == 0 and os.path.exists(out_file) and os.path.getsize(out_file) > 1000:
+            print(f"Downloaded: {name} ({video_id})")
+        else:
+            print(f"Failed: {name} ({video_id}) — no MP4 was created")
     except Exception as e:
         print(f"Failed {name} ({video_id}): {e}")
 

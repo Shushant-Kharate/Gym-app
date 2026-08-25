@@ -13,6 +13,8 @@ export function useTimer(initialSeconds, onComplete, autoStart = false, onTick =
   const [isRunning, setIsRunning] = useState(autoStart);
 
   const intervalRef   = useRef(null);
+  const endTimeRef    = useRef(null);
+  const lastTickRef   = useRef(initialSeconds);
   const onCompleteRef = useRef(onComplete);
   const onTickRef     = useRef(onTick);
   onCompleteRef.current = onComplete;
@@ -20,27 +22,32 @@ export function useTimer(initialSeconds, onComplete, autoStart = false, onTick =
 
   useEffect(() => {
     if (isRunning) {
+      if (!endTimeRef.current) endTimeRef.current = Date.now() + secondsLeft * 1000;
       intervalRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
-          const next = prev - 1;
-          // Fire the tick callback (used for 30s reminders, countdown beeps)
+        const next = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
+        setSecondsLeft(next);
+        if (next !== lastTickRef.current) {
+          lastTickRef.current = next;
           onTickRef.current?.(next, totalSeconds);
-          if (next <= 0) {
-            clearInterval(intervalRef.current);
-            setIsRunning(false);
-            onCompleteRef.current?.();
-            return 0;
-          }
-          return next;
-        });
-      }, 1000);
+        }
+        if (next <= 0) {
+          clearInterval(intervalRef.current);
+          endTimeRef.current = null;
+          setIsRunning(false);
+          onCompleteRef.current?.();
+        }
+      }, 250);
     } else {
       clearInterval(intervalRef.current);
+      endTimeRef.current = null;
     }
     return () => clearInterval(intervalRef.current);
-  }, [isRunning, totalSeconds]);
+  }, [isRunning, totalSeconds, secondsLeft]);
 
-  const start    = useCallback(() => setIsRunning(true), []);
+  const start    = useCallback(() => {
+    endTimeRef.current = Date.now() + secondsLeft * 1000;
+    setIsRunning(true);
+  }, [secondsLeft]);
   const pause    = useCallback(() => setIsRunning(false), []);
 
   const reset    = useCallback((newSec) => {
@@ -48,12 +55,16 @@ export function useTimer(initialSeconds, onComplete, autoStart = false, onTick =
     setIsRunning(false);
     setSecondsLeft(s);
     setTotalSeconds(s);
+    endTimeRef.current = null;
+    lastTickRef.current = s;
   }, [initialSeconds]);
 
   const restart  = useCallback((newSec) => {
     const s = newSec ?? initialSeconds;
     setSecondsLeft(s);
     setTotalSeconds(s);
+    endTimeRef.current = Date.now() + s * 1000;
+    lastTickRef.current = s;
     setIsRunning(true);
   }, [initialSeconds]);
 
@@ -61,12 +72,14 @@ export function useTimer(initialSeconds, onComplete, autoStart = false, onTick =
   const addTime = useCallback((sec) => {
     setSecondsLeft(prev => Math.max(1, prev + sec));
     setTotalSeconds(prev => Math.max(1, prev + sec));
+    if (endTimeRef.current) endTimeRef.current += sec * 1000;
   }, []);
 
   /** Subtract seconds from remaining time (and ceiling) — live adjustment */
   const subtractTime = useCallback((sec) => {
     setSecondsLeft(prev => Math.max(1, prev - sec));
     setTotalSeconds(prev => Math.max(1, prev - sec));
+    if (endTimeRef.current) endTimeRef.current = Math.max(Date.now() + 1000, endTimeRef.current - sec * 1000);
   }, []);
 
   const minutes  = Math.floor(secondsLeft / 60);

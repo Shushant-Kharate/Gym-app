@@ -1,12 +1,12 @@
 // Dashboard.jsx — Premium gym app dashboard
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Play, TrendingDown, Zap, ChevronRight, RefreshCw, AlertTriangle,
-  SkipForward, Shuffle, ArrowRight, Flame, Trophy, Target, Timer, Dumbbell,
+  SkipForward, Flame,
   Calendar, Activity
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Area, AreaChart
+  Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
 import { getProfile, getProgramState, getBodyLogs, getNutritionLogForDate, getNutritionLogs, getWorkoutSessions, saveProgramState } from '../db/storage';
 import { getDayByIndex, getNextTrainingDay } from '../data/program';
@@ -15,12 +15,15 @@ import { calcWaistHeightRatio, calcGoalCurve, flagWaterWeightDrop } from '../log
 import { getSkipOptions, buildMergedSession } from '../logic/skipMerge';
 import { getWeeklySummary } from '../logic/geminiCoach';
 import { getSettings } from '../db/storage';
+import { toLocalDateString } from '../utils/dateUtils';
 import MacroBar from '../components/nutrition/MacroBar';
 import ProgressRing from '../components/shared/ProgressRing';
+import { useNavigate } from 'react-router-dom';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = toLocalDateString();
 
 export default function Dashboard({ onStartWorkout }) {
+  const navigate = useNavigate();
   const [profile] = useState(getProfile);
   const [programState, setProgramState] = useState(getProgramState);
   const [bodyLogs] = useState(getBodyLogs);
@@ -37,11 +40,12 @@ export default function Dashboard({ onStartWorkout }) {
   const nextTraining = getNextTrainingDay(programState.currentDayIndex);
   const settings = getSettings();
 
-  const maintenance = useMemo(() => calcMaintenance(profile.currentWeightKg, profile.heightCm, profile.age), [profile]);
-  const proteinTarget = useMemo(() => calcProteinTarget(profile.currentWeightKg), [profile]);
+  const latestWeight = [...bodyLogs].reverse().find(log => log.weightKg)?.weightKg ?? profile.currentWeightKg;
+  const maintenance = useMemo(() => calcMaintenance(latestWeight, profile.heightCm, profile.age), [latestWeight, profile]);
+  const proteinTarget = useMemo(() => calcProteinTarget(latestWeight), [latestWeight]);
   const deficitTarget = useMemo(() => calcDeficitTarget(maintenance.maintenance), [maintenance]);
 
-  const todayMeals = todayNutrition.meals ?? [];
+  const todayMeals = useMemo(() => todayNutrition.meals ?? [], [todayNutrition.meals]);
   const todayTotals = useMemo(() => getDayTotals(todayMeals), [todayMeals]);
   const weeklyAvg = useMemo(() => getWeeklyAverages(nutritionLogs, TODAY), [nutritionLogs]);
 
@@ -68,13 +72,13 @@ export default function Dashboard({ onStartWorkout }) {
   function handleSkipOption(optionId) {
     const state = { ...programState };
     if (optionId === 'shift') {
-      state.currentDayIndex = (state.currentDayIndex + 1) % 14;
+      // Keep the same workout active so it becomes tomorrow's session.
+      state.cycleStart = toLocalDateString(new Date(new Date(state.cycleStart).getTime() + 86400000));
     } else if (optionId === 'skip_log') {
       state.skippedDays = [...(state.skippedDays ?? []), { date: TODAY, day: currentDay.name }];
       state.currentDayIndex = (state.currentDayIndex + 1) % 14;
     } else if (optionId === 'smart_merge') {
       const merged = buildMergedSession(currentDay, nextTraining?.day);
-      state.currentDayIndex = (nextTraining?.day.dayIndex + 1) % 14;
       state.mergeHistory = [...(state.mergeHistory ?? []), { date: TODAY, merged: merged.tag }];
       saveProgramState(state);
       setProgramState(state);
@@ -85,6 +89,15 @@ export default function Dashboard({ onStartWorkout }) {
     saveProgramState(state);
     setProgramState(state);
     setShowSkipModal(false);
+  }
+
+  function handleCompleteRestDay() {
+    const state = {
+      ...programState,
+      currentDayIndex: (programState.currentDayIndex + 1) % 14,
+    };
+    saveProgramState(state);
+    setProgramState(state);
   }
 
   async function fetchAiSummary() {
@@ -111,10 +124,6 @@ export default function Dashboard({ onStartWorkout }) {
 
   // Waist ring progress: 0.62 (worst) → 0.53 (target) maps to 0→100%
   const ratioProgress = Math.max(0, Math.min(100, ((0.62 - waistRatio.ratio) / (0.62 - 0.53)) * 100));
-
-  // Protein progress
-  const proteinPct = Math.min(100, (todayTotals.proteinG / proteinTarget.minG) * 100);
-  const calPct = Math.min(100, (todayTotals.kcal / deficitTarget.maxKcal) * 100);
 
   return (
     <div>
@@ -254,7 +263,7 @@ export default function Dashboard({ onStartWorkout }) {
               <button
                 id="dashboard-view-plan"
                 className="btn btn-ghost btn-full mt-sm"
-                onClick={() => window.location.href = '/program'}
+                onClick={() => navigate('/program')}
                 style={{ fontSize: 12 }}
               >
                 <Calendar size={14} /> View All 14 Days Plan
@@ -269,6 +278,9 @@ export default function Dashboard({ onStartWorkout }) {
               {(currentDay.tips ?? []).map((tip, i) => (
                 <p key={i} className="text-xs text-muted" style={{ padding: '3px 0', paddingLeft: 24 }}>• {tip}</p>
               ))}
+              <button className="btn btn-primary btn-full mt-md" onClick={handleCompleteRestDay}>
+                Complete Rest Day <ChevronRight size={16} />
+              </button>
             </div>
           )}
         </div>
@@ -439,6 +451,7 @@ export default function Dashboard({ onStartWorkout }) {
             <p className="display-xs">AI Coach</p>
             <div style={{ flex: 1 }} />
             <button id="dashboard-ai-refresh" className="btn btn-ghost btn-icon" onClick={fetchAiSummary} disabled={aiLoading}
+              aria-label="Generate weekly AI summary"
               style={{ padding: 8 }}>
               <RefreshCw size={16} className={aiLoading ? 'spin' : ''} />
             </button>

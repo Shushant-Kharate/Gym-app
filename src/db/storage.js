@@ -1,6 +1,13 @@
 // storage.js — all localStorage I/O goes through here
 // Never call localStorage directly elsewhere in the app
-import { DEFAULT_EXERCISE_VIDEOS } from '../data/defaultVideos';
+import { DEFAULT_EXERCISE_VIDEOS } from '../data/defaultVideos.js';
+import { toLocalDateString } from '../utils/dateUtils.js';
+
+const EXERCISE_VIDEO_ALIASES = {
+  'Pull-up / Lat Pulldown': 'Pull-up',
+  'Wrist Curl / Reverse Wrist Curl': 'Wrist Curl',
+  'Bench Press': 'Barbell Bench Press',
+};
 
 const KEYS = {
   PROFILE: 'ig_profile',
@@ -11,6 +18,7 @@ const KEYS = {
   PROGRAM_STATE: 'ig_program_state',
   SETTINGS: 'ig_settings',
   EXERCISE_VIDEOS: 'ig_exercise_videos',  // { [exerciseName]: youtubeUrl }
+  ACTIVE_WORKOUT: 'ig_active_workout',
 };
 
 function read(key) {
@@ -37,8 +45,8 @@ const DEFAULT_PROFILE = {
   heightCm: 182,
   currentWeightKg: 97.5,
   goalWeightKg: 90.5,           // realistc 60-day midpoint of 4-7kg loss
-  startDate: new Date().toISOString().slice(0, 10),
-  programStartDate: new Date().toISOString().slice(0, 10),
+  startDate: toLocalDateString(),
+  programStartDate: toLocalDateString(),
   // Lift baselines
   deadlift1RMkg: 110,
   squat1RMkg: 60,
@@ -121,9 +129,22 @@ export function getLastSessionForExercise(exerciseName) {
   return null;
 }
 
+// ─── Active Workout Draft ───────────────────────────────────────────────────
+export function getActiveWorkoutDraft() {
+  return read(KEYS.ACTIVE_WORKOUT);
+}
+
+export function saveActiveWorkoutDraft(draft) {
+  write(KEYS.ACTIVE_WORKOUT, draft);
+}
+
+export function clearActiveWorkoutDraft() {
+  localStorage.removeItem(KEYS.ACTIVE_WORKOUT);
+}
+
 // ─── Program State ───────────────────────────────────────────────────────────
 const DEFAULT_PROGRAM_STATE = {
-  cycleStart: new Date().toISOString().slice(0, 10),
+  cycleStart: toLocalDateString(),
   currentDayIndex: 0,   // 0-13 in the 14-day cycle
   mergeHistory: [],
   skippedDays: [],
@@ -137,9 +158,12 @@ export function saveProgramState(state) {
   write(KEYS.PROGRAM_STATE, state);
 }
 
-export function advanceProgramDay() {
+export function advanceProgramDay(completedDayIndex = null) {
   const state = getProgramState();
-  state.currentDayIndex = (state.currentDayIndex + 1) % 14;
+  const baseIndex = Number.isInteger(completedDayIndex)
+    ? completedDayIndex
+    : state.currentDayIndex;
+  state.currentDayIndex = (baseIndex + 1) % 14;
   write(KEYS.PROGRAM_STATE, state);
   return state;
 }
@@ -164,19 +188,23 @@ export function saveSettings(settings) {
 // Stores a flat map: { "Barbell Bench Press": "https://youtube.com/..." }
 export function getExerciseVideos() {
   const custom = read(KEYS.EXERCISE_VIDEOS);
-  return { ...DEFAULT_EXERCISE_VIDEOS, ...(custom ?? {}) };
+  const videos = { ...DEFAULT_EXERCISE_VIDEOS };
+  for (const [name, url] of Object.entries(custom ?? {})) {
+    if (url) videos[name] = url;
+    else delete videos[name];
+  }
+  return videos;
 }
 
 export function getVideoForExercise(name) {
   const map = getExerciseVideos();
-  return map[name] ?? null;
+  return map[name] ?? map[EXERCISE_VIDEO_ALIASES[name]] ?? null;
 }
 
 export function saveVideoForExercise(name, url) {
-  const map = getExerciseVideos();
-  if (url) map[name] = url;
-  else delete map[name];
-  write(KEYS.EXERCISE_VIDEOS, map);
+  const custom = read(KEYS.EXERCISE_VIDEOS) ?? {};
+  custom[name] = url || null; // null is a persistent tombstone for bundled defaults
+  write(KEYS.EXERCISE_VIDEOS, custom);
 }
 
 export function clearVideoForExercise(name) {
@@ -189,8 +217,10 @@ export function exportAllData() {
     profile: getProfile(),
     bodyLogs: getBodyLogs(),
     nutritionLogs: getNutritionLogs(),
+    foodLibrary: getFoodLibrary(),
     workoutSessions: getWorkoutSessions(),
     programState: getProgramState(),
+    exerciseVideos: getExerciseVideos(),
     settings: { ...getSettings(), geminiKey: '[REDACTED]' },
     exportedAt: new Date().toISOString(),
   };

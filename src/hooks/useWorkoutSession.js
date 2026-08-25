@@ -1,7 +1,11 @@
 // useWorkoutSession.js — active session state machine
-import { useState, useCallback } from 'react';
-import { saveWorkoutSession, advanceProgramDay } from '../db/storage';
+import { useState, useCallback, useEffect } from 'react';
+import {
+  saveWorkoutSession, advanceProgramDay, getActiveWorkoutDraft,
+  saveActiveWorkoutDraft, clearActiveWorkoutDraft,
+} from '../db/storage';
 import { suggestNextWeight } from '../logic/progressiveOverload';
+import { toLocalDateString } from '../utils/dateUtils';
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -29,19 +33,33 @@ function initExercises(programExercises) {
 
 export function useWorkoutSession(programDay) {
   const SESSION_BUDGET_SEC = 7200; // 2 hours
+  const [restoredDraft] = useState(() => {
+    const draft = getActiveWorkoutDraft();
+    return draft?.programDay?.dayIndex === programDay?.dayIndex ? draft : null;
+  });
 
-  const [phase, setPhase] = useState('warmup');   // warmup | workout | stretch | complete
+  const [phase, setPhase] = useState(restoredDraft?.phase ?? 'warmup');
   const [warmupChecks, setWarmupChecks] = useState(
-    () => (programDay?.warmup ?? []).map(() => false)
+    () => restoredDraft?.warmupChecks ?? (programDay?.warmup ?? []).map(() => false)
   );
   const [stretchChecks, setStretchChecks] = useState(
-    () => (programDay?.stretches ?? []).map(() => false)
+    () => restoredDraft?.stretchChecks ?? (programDay?.stretches ?? []).map(() => false)
   );
-  const [exercises, setExercises] = useState(() => initExercises(programDay?.exercises ?? []));
-  const [currentExIdx, setCurrentExIdx] = useState(0);
+  const [exercises, setExercises] = useState(
+    () => restoredDraft?.exercises ?? initExercises(programDay?.exercises ?? [])
+  );
+  const [currentExIdx, setCurrentExIdx] = useState(restoredDraft?.currentExIdx ?? 0);
   const [restTimer, setRestTimer] = useState(null); // { active, secondsLeft, exerciseName }
-  const [sessionStartTime] = useState(() => Date.now());
-  const [sessionNotes, setSessionNotes] = useState('');
+  const [sessionStartTime] = useState(() => restoredDraft?.sessionStartTime ?? Date.now());
+  const [sessionNotes, setSessionNotes] = useState(restoredDraft?.sessionNotes ?? '');
+
+  useEffect(() => {
+    if (phase === 'complete') return;
+    saveActiveWorkoutDraft({
+      programDay, phase, warmupChecks, stretchChecks, exercises,
+      currentExIdx, sessionStartTime, sessionNotes,
+    });
+  }, [programDay, phase, warmupChecks, stretchChecks, exercises, currentExIdx, sessionStartTime, sessionNotes]);
 
   // ─── Warmup ────────────────────────────────────────────────────────────────
   const toggleWarmup = useCallback((idx) => {
@@ -62,8 +80,8 @@ export function useWorkoutSession(programDay) {
       const newSets = ex.sets.map((s, si) => si === setIdx ? { ...s, done: true } : s);
       return { ...ex, sets: newSets };
     }));
-    // Start rest timer — prefer per-exercise restSec from program data, fall back to caller's duration
-    const exRestSec = exercises[exIdx]?.restSec ?? restDurationSec;
+    // The duration passed by WorkoutMode reflects the user's saved settings.
+    const exRestSec = restDurationSec;
     setRestTimer({ active: true, durationSec: exRestSec, total: exRestSec, started: Date.now(), exerciseName: exercises[exIdx]?.name });
   }, [exercises]);
 
@@ -114,15 +132,20 @@ export function useWorkoutSession(programDay) {
   // ─── Save session ──────────────────────────────────────────────────────────
   const saveSession = useCallback((isEarly = false) => {
     const durationMin = Math.round((Date.now() - sessionStartTime) / 60000);
+    const completedSetCount = exercises.reduce(
+      (total, exercise) => total + exercise.sets.filter(set => set.done).length,
+      0
+    );
     const session = {
       id: uid(),
-      date: new Date().toISOString().slice(0, 10),
+      date: toLocalDateString(),
       name: programDay?.name ?? 'Workout',
       tag: programDay?.tag ?? null,
       type: programDay?.type ?? 'workout',
       exercises: exercises.map(ex => ({
         name: ex.name,
         targetReps: ex.reps,
+        targetRepsMin: ex.targetRepsMin,
         sets: ex.sets,
       })),
       durationMin,
@@ -130,7 +153,11 @@ export function useWorkoutSession(programDay) {
       notes: sessionNotes,
     };
     saveWorkoutSession(session);
-    advanceProgramDay();
+    clearActiveWorkoutDraft();
+    // An accidental empty early exit should not silently skip a program day.
+    if (!isEarly || completedSetCount > 0) {
+      advanceProgramDay(programDay?.dayIndex);
+    }
     return session;
   }, [exercises, programDay, sessionStartTime, sessionNotes]);
 

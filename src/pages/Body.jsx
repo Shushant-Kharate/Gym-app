@@ -1,16 +1,17 @@
 // Body.jsx — Premium body tracking page
 import { useState, useMemo } from 'react';
-import { Plus, Save, Info, TrendingDown, Activity, Ruler, Scale } from 'lucide-react';
+import { Plus, Save, Info, TrendingDown, Ruler, Scale } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart
 } from 'recharts';
 import { getProfile, getBodyLogs, addBodyLog } from '../db/storage';
 import {
-  calcWaistHeightRatio, calcWaistHipRatio, calcBMI, calcGoalCurve, flagWaterWeightDrop, detectWeightStall, calcBodyFatNavy
+  calcWaistHeightRatio, calcBMI, calcGoalCurve, flagWaterWeightDrop, detectWeightStall, calcBodyFatNavy
 } from '../logic/bodyMetrics';
 import ProgressRing from '../components/shared/ProgressRing';
+import { toLocalDateString } from '../utils/dateUtils';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = toLocalDateString();
 
 export default function Body() {
   const profile = getProfile();

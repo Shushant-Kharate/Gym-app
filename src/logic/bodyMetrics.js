@@ -91,7 +91,7 @@ export function flagWaterWeightDrop(bodyLogs, programStartDate) {
 /**
  * Check if weight trend is stalling despite a logged deficit
  */
-export function detectWeightStall(bodyLogs, nutritionLogs) {
+export function detectWeightStall(bodyLogs, _nutritionLogs) {
   if (bodyLogs.length < 3) return null;
   const recent = [...bodyLogs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const weightDelta = recent[recent.length - 1].weightKg - recent[0].weightKg;
@@ -120,4 +120,3 @@ export function calcBodyFatNavy(waistCm, neckCm, heightCm) {
     formula: `86.01×log₁₀(${waistCm}−${neckCm}) − 70.04×log₁₀(${heightCm}) + 36.76 = ${rounded}%`,
   };
 }
-

@@ -13,6 +13,10 @@ export default function SetRow({ setIndex, set, onCheck, onSkip, onWeightChange,
     }
   }
 
+  function handleSkip() {
+    if (!set.done && !set.skipped) onSkip(setIndex);
+  }
+
   const est1RM = set.done ? calc1RM(set.weightKg, set.reps) : null;
 
   return (
@@ -48,8 +52,16 @@ export default function SetRow({ setIndex, set, onCheck, onSkip, onWeightChange,
         />
       </div>
 
-      {/* Check button + est 1RM */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      {/* Set actions + est 1RM */}
+      <div className="set-actions">
+        <button
+          className="set-skip"
+          onClick={handleSkip}
+          disabled={set.done || set.skipped}
+          aria-label={`Skip set ${setIndex + 1}`}
+        >
+          <SkipForward size={16} />
+        </button>
         <button
           id={`set-check-${setIndex}`}
           className={`set-check ${set.done ? 'done' : ''}`}
@@ -72,4 +84,3 @@ export default function SetRow({ setIndex, set, onCheck, onSkip, onWeightChange,
     </div>
   );
 }
-

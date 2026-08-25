@@ -1,15 +1,13 @@
 // ProgramOverview.jsx — Complete 14-day workout cycle overview mode
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Dumbbell, Calendar, ChevronDown, ChevronUp, Play, CheckCircle2,
-  Flame, Zap, Activity, Info, RotateCcw
+  Calendar, ChevronDown, ChevronUp, Play, CheckCircle2,
+  Zap, Activity, Info
 } from 'lucide-react';
 import { PROGRAM_DAYS } from '../data/program';
 import { getProgramState, saveProgramState } from '../db/storage';
 
 export default function ProgramOverview({ onStartWorkout }) {
-  const navigate = useNavigate();
   const [programState, setProgramState] = useState(getProgramState);
   const [expandedDay, setExpandedDay] = useState(programState.currentDayIndex);
   const [filter, setFilter] = useState('all'); // 'all' | 'workout' | 'rest'
@@ -31,8 +29,15 @@ export default function ProgramOverview({ onStartWorkout }) {
 
   function handleStartDay(day) {
     if (onStartWorkout) {
+      handleSetCurrentDay(day.dayIndex);
       onStartWorkout(day);
     }
+  }
+
+  function handleCompleteRestDay(day) {
+    const updated = { ...programState, currentDayIndex: (day.dayIndex + 1) % 14 };
+    saveProgramState(updated);
+    setProgramState(updated);
   }
 
   return (
@@ -270,6 +275,11 @@ export default function ProgramOverview({ onStartWorkout }) {
                             onClick={() => handleSetCurrentDay(day.dayIndex)}
                           >
                             Set Active Day to Rest Day {day.dayIndex + 1}
+                          </button>
+                        )}
+                        {isCurrent && (
+                          <button className="btn btn-primary btn-sm btn-full" onClick={() => handleCompleteRestDay(day)}>
+                            Complete Rest Day
                           </button>
                         )}
                       </div>

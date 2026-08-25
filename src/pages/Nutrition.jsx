@@ -1,28 +1,30 @@
 // Nutrition.jsx — Premium nutrition tracking with glassmorphism
 import { useState, useMemo } from 'react';
-import { Plus, Zap, AlertTriangle, Flame, TrendingUp } from 'lucide-react';
-import { getNutritionLogForDate, saveNutritionLog, getProfile, getNutritionLogs } from '../db/storage';
+import { Plus, Zap, AlertTriangle } from 'lucide-react';
+import { getNutritionLogForDate, saveNutritionLog, getProfile, getNutritionLogs, getBodyLogs } from '../db/storage';
 import { calcMaintenance, calcProteinTarget, calcDeficitTarget, getDayTotals, getWeeklyAverages, flagIncompleteDayLog, getProteinGap } from '../logic/nutrition';
 import { calcFoodNutrition, getPinnedFoods } from '../data/foodLibrary';
 import MacroBar from '../components/nutrition/MacroBar';
 import QuickAdd from '../components/nutrition/QuickAdd';
 import FoodLog from '../components/nutrition/FoodLog';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { toLocalDateString } from '../utils/dateUtils';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = toLocalDateString();
 
 export default function Nutrition() {
   const profile = getProfile();
   const [log, setLog] = useState(() => getNutritionLogForDate(TODAY));
-  const [weeklyLogs] = useState(() => getNutritionLogs());
+  const [weeklyLogs, setWeeklyLogs] = useState(() => getNutritionLogs());
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [viewMode, setViewMode] = useState('today');
 
-  const maintenance = calcMaintenance(profile.currentWeightKg, profile.heightCm, profile.age);
-  const proteinTarget = calcProteinTarget(profile.currentWeightKg);
+  const latestWeight = [...getBodyLogs()].reverse().find(entry => entry.weightKg)?.weightKg ?? profile.currentWeightKg;
+  const maintenance = calcMaintenance(latestWeight, profile.heightCm, profile.age);
+  const proteinTarget = calcProteinTarget(latestWeight);
   const deficitTarget = calcDeficitTarget(maintenance.maintenance);
 
-  const meals = log.meals ?? [];
+  const meals = useMemo(() => log.meals ?? [], [log.meals]);
   const totals = useMemo(() => getDayTotals(meals), [meals]);
   const incompleteFlagResult = useMemo(() => flagIncompleteDayLog(totals), [totals]);
   const proteinGap = useMemo(() => getProteinGap(totals.proteinG, proteinTarget.minG), [totals, proteinTarget]);
@@ -32,7 +34,7 @@ export default function Nutrition() {
     const days = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = toLocalDateString(d);
       const dayLog = weeklyLogs.find(l => l.date === dateStr);
       days.push({ label: d.toLocaleDateString('en-IN', { weekday: 'short' }), kcal: dayLog?.totals?.kcal ?? 0, protein: dayLog?.totals?.proteinG ?? 0 });
     }
@@ -44,6 +46,7 @@ export default function Nutrition() {
     const newLog = { ...log, meals: newMeals, totals: newTotals };
     setLog(newLog);
     saveNutritionLog(newLog);
+    setWeeklyLogs(getNutritionLogs());
   }
 
   function handleAddFood(entry) { updateLog([...meals, entry]); setShowQuickAdd(false); }
@@ -58,7 +61,7 @@ export default function Nutrition() {
     });
   }
 
-  const pinnedFoods = getPinnedFoods();
+  const pinnedFoods = useMemo(() => getPinnedFoods(), []);
   const pinnedAdded = useMemo(() => Object.fromEntries(pinnedFoods.map(p => [p.id, meals.some(m => m.foodId === p.id)])), [meals, pinnedFoods]);
 
   // Calorie/protein ring %
