@@ -38,7 +38,7 @@ API key in Settings; app data and that key remain in that browser's local storag
 
 - React + Vite frontend with React Router
 - Browser `localStorage` persistence through `src/db/storage.js`
-- 14-day bundled program in `src/data/program.js`
+- Repeatable 7-day Push/Pull/Legs A/B program in `src/data/program.js`
 - Local exercise MP4 files in `public/videos`, with YouTube fallback
 - Recharts analytics and Web Audio workout cues
 - Optional Gemini coaching using `gemini-2.5-flash`

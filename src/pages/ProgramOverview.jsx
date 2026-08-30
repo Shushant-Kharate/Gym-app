@@ -1,10 +1,10 @@
-// ProgramOverview.jsx — Complete 14-day workout cycle overview mode
+// ProgramOverview.jsx — Complete repeatable workout-cycle overview
 import { useState, useMemo } from 'react';
 import {
   Calendar, ChevronDown, ChevronUp, Play, CheckCircle2,
   Zap, Activity, Info
 } from 'lucide-react';
-import { PROGRAM_DAYS } from '../data/program';
+import { PROGRAM_DAYS, PROGRAM_CYCLE_LENGTH } from '../data/program';
 import { getProgramState, saveProgramState } from '../db/storage';
 
 export default function ProgramOverview({ onStartWorkout }) {
@@ -35,7 +35,7 @@ export default function ProgramOverview({ onStartWorkout }) {
   }
 
   function handleCompleteRestDay(day) {
-    const updated = { ...programState, currentDayIndex: (day.dayIndex + 1) % 14 };
+    const updated = { ...programState, currentDayIndex: (day.dayIndex + 1) % PROGRAM_CYCLE_LENGTH };
     saveProgramState(updated);
     setProgramState(updated);
   }
@@ -50,7 +50,7 @@ export default function ProgramOverview({ onStartWorkout }) {
               <div className="flex items-center gap-xs mb-xs">
                 <Calendar size={14} color="var(--accent-iron)" />
                 <span className="text-xs text-iron" style={{ fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                  14-Day Cycle Program
+                  {PROGRAM_CYCLE_LENGTH}-Day Repeatable Cycle
                 </span>
               </div>
               <h1 className="page-title">Workout Plan</h1>
@@ -66,7 +66,7 @@ export default function ProgramOverview({ onStartWorkout }) {
           {/* Filter Tabs */}
           <div className="flex gap-xs mt-sm">
             {[
-              { id: 'all', label: 'All 14 Days' },
+              { id: 'all', label: `All ${PROGRAM_CYCLE_LENGTH} Days` },
               { id: 'workout', label: 'Workouts Only' },
               { id: 'rest', label: 'Rest Days' },
             ].map(f => (
@@ -93,7 +93,7 @@ export default function ProgramOverview({ onStartWorkout }) {
           </span>
         </div>
 
-        {/* 14 Days List */}
+        {/* Cycle day list */}
         <div className="flex flex-col gap-md">
           {visibleDays.map((day) => {
             const isCurrent = day.dayIndex === currentIdx;
@@ -152,7 +152,7 @@ export default function ProgramOverview({ onStartWorkout }) {
                         </span>
                         {!day.isRest && (
                           <span className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                            {(day.exercises ?? []).length} exercises
+                            {(day.exercises ?? []).length} exercises · {day.durationMin} min max
                           </span>
                         )}
                       </div>
@@ -169,6 +169,12 @@ export default function ProgramOverview({ onStartWorkout }) {
                   <div className="mt-md" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
                     {!day.isRest ? (
                       <>
+                        {day.timePlan && (
+                          <div className="banner banner-info mb-md">
+                            <Info size={14} />
+                            <span>{day.timePlan}</span>
+                          </div>
+                        )}
                         {/* Action buttons */}
                         <div className="flex gap-sm mb-md">
                           <button
@@ -242,9 +248,9 @@ export default function ProgramOverview({ onStartWorkout }) {
                           </div>
                         </div>
 
-                        {/* Stretches List */}
+                        {/* Cooldown and optional conditioning list */}
                         <div>
-                          <p className="label">Post-Workout Stretches</p>
+                          <p className="label">Cooldown & Optional Cardio</p>
                           <div className="flex flex-col gap-xs">
                             {(day.stretches ?? []).map((s, i) => (
                               <p key={i} className="text-xs text-muted">• {s}</p>

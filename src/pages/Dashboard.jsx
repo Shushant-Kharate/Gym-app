@@ -9,7 +9,7 @@ import {
   Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
 import { getProfile, getProgramState, getBodyLogs, getNutritionLogForDate, getNutritionLogs, getWorkoutSessions, saveProgramState } from '../db/storage';
-import { getDayByIndex, getNextTrainingDay } from '../data/program';
+import { getDayByIndex, getNextTrainingDay, PROGRAM_CYCLE_LENGTH } from '../data/program';
 import { calcMaintenance, calcProteinTarget, calcDeficitTarget, getDayTotals, getWeeklyAverages } from '../logic/nutrition';
 import { calcWaistHeightRatio, calcGoalCurve, flagWaterWeightDrop } from '../logic/bodyMetrics';
 import { getSkipOptions, buildMergedSession } from '../logic/skipMerge';
@@ -76,7 +76,7 @@ export default function Dashboard({ onStartWorkout }) {
       state.cycleStart = toLocalDateString(new Date(new Date(state.cycleStart).getTime() + 86400000));
     } else if (optionId === 'skip_log') {
       state.skippedDays = [...(state.skippedDays ?? []), { date: TODAY, day: currentDay.name }];
-      state.currentDayIndex = (state.currentDayIndex + 1) % 14;
+      state.currentDayIndex = (state.currentDayIndex + 1) % PROGRAM_CYCLE_LENGTH;
     } else if (optionId === 'smart_merge') {
       const merged = buildMergedSession(currentDay, nextTraining?.day);
       state.mergeHistory = [...(state.mergeHistory ?? []), { date: TODAY, merged: merged.tag }];
@@ -94,7 +94,7 @@ export default function Dashboard({ onStartWorkout }) {
   function handleCompleteRestDay() {
     const state = {
       ...programState,
-      currentDayIndex: (programState.currentDayIndex + 1) % 14,
+      currentDayIndex: (programState.currentDayIndex + 1) % PROGRAM_CYCLE_LENGTH,
     };
     saveProgramState(state);
     setProgramState(state);
@@ -180,7 +180,7 @@ export default function Dashboard({ onStartWorkout }) {
               <div className="flex gap-sm items-center">
                 <span className="badge badge-iron">{currentDay.subtitle}</span>
                 <span className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                  Day {programState.currentDayIndex + 1}/14
+                  Day {programState.currentDayIndex + 1}/{PROGRAM_CYCLE_LENGTH}
                 </span>
               </div>
             </div>
@@ -193,7 +193,7 @@ export default function Dashboard({ onStartWorkout }) {
                   cx="32" cy="32" r="28" fill="none"
                   stroke="url(#dayGrad)" strokeWidth="4"
                   strokeDasharray={2 * Math.PI * 28}
-                  strokeDashoffset={2 * Math.PI * 28 * (1 - (programState.currentDayIndex + 1) / 14)}
+                  strokeDashoffset={2 * Math.PI * 28 * (1 - (programState.currentDayIndex + 1) / PROGRAM_CYCLE_LENGTH)}
                   strokeLinecap="round"
                   transform="rotate(-90 32 32)"
                 />

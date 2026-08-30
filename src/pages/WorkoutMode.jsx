@@ -25,12 +25,12 @@ export default function WorkoutMode({ programDay, onEnd }) {
     checkSet, skipSet, updateSetWeight, updateSetReps,
     isCurrentExerciseComplete, nextExercise,
     restTimer, dismissRestTimer,
-    sessionStartTime, saveSession,
+    sessionStartTime, saveSession, SESSION_BUDGET_SEC,
   } = session;
 
-  // 2-hour session timer
+  // 90-minute session ceiling, including warmup and cooldown.
   const sessionTimer = useTimer(
-    7200,
+    SESSION_BUDGET_SEC,
     () => {}, // no auto-end — just visual
     true       // autoStart
   );
@@ -44,9 +44,11 @@ export default function WorkoutMode({ programDay, onEnd }) {
   const currentExercise = exercises[currentExIdx];
 
   // User settings are authoritative; program values remain suggested defaults.
-  const getRestForExercise = () => programDay?.type === 'strength'
-    ? settings.restTimerStrengthSec
-    : settings.restTimerHypertrophySec;
+  const getRestForExercise = (exercise) => exercise?.restSec ?? (
+    programDay?.type === 'strength'
+      ? settings.restTimerStrengthSec
+      : settings.restTimerHypertrophySec
+  );
 
   const currentRestDuration = currentExercise ? getRestForExercise(currentExercise) : settings.restTimerStrengthSec;
 
@@ -181,10 +183,10 @@ export default function WorkoutMode({ programDay, onEnd }) {
             </div>
           </div>
 
-          {durationMin > 120 && (
+          {durationMin > 90 && (
             <div className="banner banner-warning mb-md">
               <Clock size={14} />
-              <span>Session ran over 2 hours. Consider trimming an accessory next time.</span>
+              <span>Session ran over 90 minutes. Skip optional cardio or trim the final accessory next time.</span>
             </div>
           )}
 
@@ -453,7 +455,7 @@ export default function WorkoutMode({ programDay, onEnd }) {
         {phase === 'stretch' && (
           <div>
             <ChecklistBlock
-              title="Stretch"
+              title="Cooldown"
               items={programDay?.stretches ?? []}
               checks={stretchChecks}
               onToggle={toggleStretch}

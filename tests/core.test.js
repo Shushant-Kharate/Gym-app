@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_EXERCISE_VIDEOS } from '../src/data/defaultVideos.js';
+import { PROGRAM_DAYS, PROGRAM_CYCLE_LENGTH, SESSION_BUDGET_MIN } from '../src/data/program.js';
 import { toLocalDateString } from '../src/utils/dateUtils.js';
 
 const values = new Map();
@@ -19,8 +20,32 @@ test.beforeEach(() => localStorage.clear());
 
 test('advances from the workout that was actually completed', () => {
   storage.saveProgramState({ currentDayIndex: 0, mergeHistory: [], skippedDays: [] });
-  const next = storage.advanceProgramDay(7);
-  assert.equal(next.currentDayIndex, 8);
+  const next = storage.advanceProgramDay(5);
+  assert.equal(next.currentDayIndex, 6);
+});
+
+test('the seven-day plan wraps cleanly after its rest day', () => {
+  assert.equal(PROGRAM_CYCLE_LENGTH, 7);
+  storage.saveProgramState({ currentDayIndex: 6, mergeHistory: [], skippedDays: [] });
+  assert.equal(storage.advanceProgramDay(6).currentDayIndex, 0);
+});
+
+test('the repeatable plan has six workouts, one rest day, and a 90-minute ceiling', () => {
+  assert.equal(PROGRAM_DAYS.filter(day => !day.isRest).length, 6);
+  assert.equal(PROGRAM_DAYS.filter(day => day.isRest).length, 1);
+  for (const day of PROGRAM_DAYS.filter(day => !day.isRest)) {
+    assert.equal(day.durationMin, SESSION_BUDGET_MIN);
+    assert.ok(day.exercises.reduce((sum, exercise) => sum + exercise.sets, 0) <= 18);
+    assert.ok(day.exercises.every(exercise => exercise.rpeTarget <= 8));
+  }
+});
+
+test('every main exercise in the new plan has a bundled form video', () => {
+  for (const day of PROGRAM_DAYS.filter(day => !day.isRest)) {
+    for (const exercise of day.exercises) {
+      assert.ok(storage.getVideoForExercise(exercise.name), `${exercise.name} is missing a video`);
+    }
+  }
 });
 
 test('does not increase weight when target reps were missed', () => {
@@ -31,6 +56,20 @@ test('does not increase weight when target reps were missed', () => {
     }],
   });
   assert.equal(suggestNextWeight('Barbell Bench Press', 20).weightKg, 30);
+});
+
+test('double progression holds weight until the top of the rep range is reached', () => {
+  storage.saveWorkoutSession({
+    id: 'volume', date: '2026-08-21', exercises: [{
+      name: 'Incline Dumbbell Press', targetRepsMin: 8, targetRepsMax: 10,
+      sets: [
+        { weightKg: 14, reps: 8, done: true, skipped: false },
+        { weightKg: 14, reps: 9, done: true, skipped: false },
+        { weightKg: 14, reps: 8, done: true, skipped: false },
+      ],
+    }],
+  });
+  assert.equal(suggestNextWeight('Incline Dumbbell Press', 12).weightKg, 14);
 });
 
 test('clearing a bundled video persists as a tombstone', () => {

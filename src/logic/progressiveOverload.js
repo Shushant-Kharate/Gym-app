@@ -6,8 +6,8 @@ import { getWorkoutSessions } from '../db/storage.js';
 /**
  * Suggest weight for next session
  * Logic:
- *   - If all sets/reps were completed → +2.5kg
- *   - If any set was incomplete → hold (same weight)
+ *   - If all sets reached the top of the prescribed rep range → +2.5kg
+ *   - Otherwise hold the same weight and build reps first
  *   - If no history → return the program's default suggested weight
  */
 export function suggestNextWeight(exerciseName, defaultWeightKg) {
@@ -29,19 +29,20 @@ export function suggestNextWeight(exerciseName, defaultWeightKg) {
     };
   }
 
-  const allSetsComplete = lastExercise.sets.every(s => s.done && s.reps >= (lastExercise.targetRepsMin || 0));
+  const progressionTarget = lastExercise.targetRepsMax ?? lastExercise.targetRepsMin ?? 0;
+  const allSetsComplete = lastExercise.sets.every(s => s.done && s.reps >= progressionTarget);
   const lastWeight = lastExercise.sets[0]?.weightKg ?? defaultWeightKg;
 
   if (allSetsComplete) {
     return {
       weightKg: lastWeight + 2.5,
-      rationale: `All sets hit last session (${lastWeight}kg) → +2.5kg`,
+      rationale: `Top of rep range reached (${lastWeight}kg) → +2.5kg`,
       delta: 2.5,
     };
   } else {
     return {
       weightKg: lastWeight,
-      rationale: `Sets incomplete last session — hold at ${lastWeight}kg`,
+      rationale: `Build reps before adding load — hold at ${lastWeight}kg`,
       delta: 0,
     };
   }

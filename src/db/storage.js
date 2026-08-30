@@ -1,6 +1,7 @@
 // storage.js — all localStorage I/O goes through here
 // Never call localStorage directly elsewhere in the app
 import { DEFAULT_EXERCISE_VIDEOS } from '../data/defaultVideos.js';
+import { PROGRAM_CYCLE_LENGTH } from '../data/program.js';
 import { toLocalDateString } from '../utils/dateUtils.js';
 
 const EXERCISE_VIDEO_ALIASES = {
@@ -131,7 +132,13 @@ export function getLastSessionForExercise(exerciseName) {
 
 // ─── Active Workout Draft ───────────────────────────────────────────────────
 export function getActiveWorkoutDraft() {
-  return read(KEYS.ACTIVE_WORKOUT);
+  const draft = read(KEYS.ACTIVE_WORKOUT);
+  const dayIndex = draft?.programDay?.dayIndex;
+  if (Number.isInteger(dayIndex) && (dayIndex < 0 || dayIndex >= PROGRAM_CYCLE_LENGTH)) {
+    localStorage.removeItem(KEYS.ACTIVE_WORKOUT);
+    return null;
+  }
+  return draft;
 }
 
 export function saveActiveWorkoutDraft(draft) {
@@ -145,13 +152,17 @@ export function clearActiveWorkoutDraft() {
 // ─── Program State ───────────────────────────────────────────────────────────
 const DEFAULT_PROGRAM_STATE = {
   cycleStart: toLocalDateString(),
-  currentDayIndex: 0,   // 0-13 in the 14-day cycle
+  currentDayIndex: 0,   // 0-6 in the repeatable 7-day cycle
+  cycleVersion: 2,
   mergeHistory: [],
   skippedDays: [],
 };
 
 export function getProgramState() {
-  return read(KEYS.PROGRAM_STATE) ?? DEFAULT_PROGRAM_STATE;
+  const state = { ...DEFAULT_PROGRAM_STATE, ...(read(KEYS.PROGRAM_STATE) ?? {}) };
+  state.currentDayIndex = ((state.currentDayIndex % PROGRAM_CYCLE_LENGTH) + PROGRAM_CYCLE_LENGTH) % PROGRAM_CYCLE_LENGTH;
+  state.cycleVersion = 2;
+  return state;
 }
 
 export function saveProgramState(state) {
@@ -163,7 +174,7 @@ export function advanceProgramDay(completedDayIndex = null) {
   const baseIndex = Number.isInteger(completedDayIndex)
     ? completedDayIndex
     : state.currentDayIndex;
-  state.currentDayIndex = (baseIndex + 1) % 14;
+  state.currentDayIndex = (baseIndex + 1) % PROGRAM_CYCLE_LENGTH;
   write(KEYS.PROGRAM_STATE, state);
   return state;
 }

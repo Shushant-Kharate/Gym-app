@@ -6,9 +6,18 @@ import {
 } from '../db/storage';
 import { suggestNextWeight } from '../logic/progressiveOverload';
 import { toLocalDateString } from '../utils/dateUtils';
+import { SESSION_BUDGET_MIN } from '../data/program';
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function parseRepRange(reps) {
+  const numbers = String(reps).match(/\d+/g)?.map(Number) ?? [];
+  return {
+    min: numbers[0] || 8,
+    max: numbers[1] || numbers[0] || 8,
+  };
 }
 
 /**
@@ -17,13 +26,15 @@ function uid() {
 function initExercises(programExercises) {
   return programExercises.map(ex => {
     const suggestion = suggestNextWeight(ex.name, ex.suggestedWeightKg);
+    const target = parseRepRange(ex.reps);
     return {
       ...ex,
-      targetRepsMin: parseInt(String(ex.reps).split('–')[0]) || parseInt(ex.reps) || 8,
+      targetRepsMin: target.min,
+      targetRepsMax: target.max,
       suggestedResult: suggestion,
       sets: Array.from({ length: ex.sets }, () => ({
         weightKg: suggestion.weightKg,
-        reps: parseInt(String(ex.reps).split('–')[0]) || 8,
+        reps: target.min,
         done: false,
         skipped: false,
       })),
@@ -32,7 +43,7 @@ function initExercises(programExercises) {
 }
 
 export function useWorkoutSession(programDay) {
-  const SESSION_BUDGET_SEC = 7200; // 2 hours
+  const SESSION_BUDGET_SEC = SESSION_BUDGET_MIN * 60;
   const [restoredDraft] = useState(() => {
     const draft = getActiveWorkoutDraft();
     return draft?.programDay?.dayIndex === programDay?.dayIndex ? draft : null;
@@ -146,6 +157,7 @@ export function useWorkoutSession(programDay) {
         name: ex.name,
         targetReps: ex.reps,
         targetRepsMin: ex.targetRepsMin,
+        targetRepsMax: ex.targetRepsMax,
         sets: ex.sets,
       })),
       durationMin,

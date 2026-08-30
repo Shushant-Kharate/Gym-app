@@ -1,7 +1,7 @@
 // skipMerge.js — Smart Merge algorithm (Section 8 of the spec)
 // Given a skipped day A and next scheduled day B, produces a blended session
 
-import { CNS_INTENSITY_ORDER } from '../data/program';
+import { CNS_INTENSITY_ORDER, SESSION_BUDGET_MIN } from '../data/program';
 
 /**
  * Build a Smart Merged session from two program days
@@ -64,7 +64,7 @@ export function buildMergedSession(dayA, dayB) {
   mergedExercises = reduceVolume(mergedExercises, 0.35);
 
   // Step 6: Cap at time budget by dropping low-priority accessories
-  mergedExercises = fitToTimeBudget(mergedExercises, 120);
+  mergedExercises = fitToTimeBudget(mergedExercises, SESSION_BUDGET_MIN);
 
   return {
     dayIndex: dayB.dayIndex,
@@ -105,7 +105,7 @@ export function reduceVolume(exercises, reductionFactor = 0.35) {
  * Rough time estimate: each exercise = (sets × 2.5min avg) + rest
  * Warmup = 10min, Stretch = 10min
  */
-export function fitToTimeBudget(exercises, budgetMinutes = 120) {
+export function fitToTimeBudget(exercises, budgetMinutes = SESSION_BUDGET_MIN) {
   const WARMUP_STRETCH_MIN = 20;
   const estimateExerciseMin = (ex) => ex.sets * 2.5; // avg 2.5 min per set (work + rest)
 
